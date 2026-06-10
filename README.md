@@ -17,8 +17,6 @@ The algorithm combines:
 3. inverse probability of censoring weighting to account for right-censored outcomes;
 4. inversion of calibrated survival thresholds to obtain prediction interval endpoints.
 
-The implementation is intentionally script-based. It is not an R package.
-
 ## Repository structure
 
 ```text
