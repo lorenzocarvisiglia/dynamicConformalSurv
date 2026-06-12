@@ -55,17 +55,14 @@ dynamic_conformal_pi <- function(
     longitudinal_markers = longitudinal_markers
   )
 
-  check_dynamic_inputs(
-    surv_data = surv_new,
-    long_data = long_new,
-    id_var = id_var,
-    time_var = time_var,
-    event_var = event_var,
-    long_time_var = long_time_var,
-    baseline_covariates = baseline_covariates,
-    longitudinal_markers = longitudinal_markers,
-    require_event = FALSE
-  )
+  check_new_inputs(
+  surv_data = surv_new,
+  long_data = long_new,
+  id_var = id_var,
+  long_time_var = long_time_var,
+  baseline_covariates = baseline_covariates,
+  longitudinal_markers = longitudinal_markers
+)
 
   if (is.null(lmm_fixefs)) {
     lmm_fixefs <- stats::as.formula("~ t.from.base")
@@ -932,6 +929,29 @@ check_columns <- function(
       paste(missing, collapse = ", ")
     )
   }
+
+  invisible(TRUE)
+}
+
+check_new_inputs <- function(
+  surv_data,
+  long_data,
+  id_var,
+  long_time_var,
+  baseline_covariates,
+  longitudinal_markers
+) {
+  check_columns(
+    data = surv_data,
+    required = c(id_var, baseline_covariates),
+    data_name = "new survival data"
+  )
+
+  check_columns(
+    data = long_data,
+    required = c(id_var, long_time_var, longitudinal_markers),
+    data_name = "new longitudinal data"
+  )
 
   invisible(TRUE)
 }
