@@ -3,9 +3,16 @@
 # Script-based implementation based on Penalized Regression Calibration
 # through the pencal package.
 #
-# Users should provide already-cleaned survival and longitudinal data.
-# The survival data must contain one row per subject.
-# The longitudinal data must contain one row per subject-visit.
+# Main function:
+# dynamic_conformal_pi()
+#
+# Required data:
+# - surv_train: one row per subject
+# - long_train: one row per subject-visit
+# - surv_new: one row per new subject
+# - long_new: one row per new subject-visit
+#
+# The function returns prediction intervals on the original time scale.
 
 dynamic_conformal_pi <- function(
   surv_train,
@@ -24,6 +31,8 @@ dynamic_conformal_pi <- function(
   side = c("two", "lower", "upper"),
   lmm_fixefs = NULL,
   lmm_ranefs = NULL,
+  penalty = "ridge",
+  standardize = TRUE,
   n_cores = 1,
   seed = NULL,
   verbose = TRUE
@@ -35,7 +44,7 @@ dynamic_conformal_pi <- function(
   }
 
   check_packages()
-  check_inputs(
+  check_dynamic_inputs(
     surv_data = surv_train,
     long_data = long_train,
     id_var = id_var,
@@ -46,12 +55,24 @@ dynamic_conformal_pi <- function(
     longitudinal_markers = longitudinal_markers
   )
 
+  check_dynamic_inputs(
+    surv_data = surv_new,
+    long_data = long_new,
+    id_var = id_var,
+    time_var = time_var,
+    event_var = event_var,
+    long_time_var = long_time_var,
+    baseline_covariates = baseline_covariates,
+    longitudinal_markers = longitudinal_markers,
+    require_event = FALSE
+  )
+
   if (is.null(lmm_fixefs)) {
-    lmm_fixefs <- stats::as.formula(paste("~", long_time_var))
+    lmm_fixefs <- stats::as.formula("~ t.from.base")
   }
 
   if (is.null(lmm_ranefs)) {
-    lmm_ranefs <- stats::as.formula(paste("~", long_time_var, "|", id_var))
+    lmm_ranefs <- stats::as.formula("~ t.from.base | id")
   }
 
   if (verbose) {
@@ -93,14 +114,17 @@ dynamic_conformal_pi <- function(
     longitudinal_markers = longitudinal_markers,
     lmm_fixefs = lmm_fixefs,
     lmm_ranefs = lmm_ranefs,
-    n_cores = n_cores
+    penalty = penalty,
+    standardize = standardize,
+    n_cores = n_cores,
+    verbose = verbose
   )
 
   if (verbose) {
-    message("Computing IPCW calibration distribution")
+    message("Computing IPCW failure distribution")
   }
 
-  calibration_dist <- make_ipcw_failure_distribution(
+  failure_dist <- make_ipcw_failure_distribution(
     surv_data = surv_lmk,
     time_var = time_var,
     event_var = event_var
@@ -113,7 +137,7 @@ dynamic_conformal_pi <- function(
   scores <- bootstrap_conformal_scores(
     surv_data = surv_lmk,
     long_data = long_lmk,
-    failure_dist = calibration_dist,
+    failure_dist = failure_dist,
     B = B,
     id_var = id_var,
     time_var = time_var,
@@ -123,6 +147,8 @@ dynamic_conformal_pi <- function(
     longitudinal_markers = longitudinal_markers,
     lmm_fixefs = lmm_fixefs,
     lmm_ranefs = lmm_ranefs,
+    penalty = penalty,
+    standardize = standardize,
     n_cores = n_cores,
     verbose = verbose
   )
@@ -140,7 +166,7 @@ dynamic_conformal_pi <- function(
   )
 
   if (verbose) {
-    message("Predicting survival curves for new subjects")
+    message("Preparing new landmark subjects")
   }
 
   new_lmk <- make_new_landmark_data(
@@ -151,6 +177,14 @@ dynamic_conformal_pi <- function(
     time_var = time_var,
     long_time_var = long_time_var
   )
+
+  if (nrow(new_lmk$surv) == 0) {
+    stop("No new subjects are available at the landmark.")
+  }
+
+  if (verbose) {
+    message("Predicting survival curves for new subjects")
+  }
 
   time_grid <- make_prediction_grid(
     landmark = landmark,
@@ -182,7 +216,7 @@ dynamic_conformal_pi <- function(
     cutoffs = cutoffs,
     calibration_scores = scores,
     m_eff = length(scores),
-    original_fit = original_fit,
+    prc_fit = original_fit,
     landmark = landmark,
     alpha = alpha,
     side = side,
@@ -205,49 +239,40 @@ fit_prc_landmark <- function(
   longitudinal_markers,
   lmm_fixefs,
   lmm_ranefs,
-  n_cores = 1
+  penalty = "ridge",
+  standardize = TRUE,
+  n_cores = 1,
+  verbose = FALSE
 ) {
-  surv_data <- as.data.frame(surv_data)
-  long_data <- as.data.frame(long_data)
-
-  surv_data[[id_var]] <- as.integer(as.factor(surv_data[[id_var]]))
-  id_map <- unique(data.frame(
-    old_id = unique(as.character(surv_data[[id_var]])),
-    new_id = unique(surv_data[[id_var]])
-  ))
-
-  long_data[[id_var]] <- as.integer(as.factor(long_data[[id_var]]))
-
-  names_for_pencal <- standardize_names_for_pencal(
+  surv_p <- prepare_surv_for_pencal(
     surv_data = surv_data,
-    long_data = long_data,
     id_var = id_var,
     time_var = time_var,
-    event_var = event_var,
-    long_time_var = long_time_var,
-    baseline_covariates = baseline_covariates,
-    longitudinal_markers = longitudinal_markers
+    event_var = event_var
   )
 
-  surv_p <- names_for_pencal$surv
-  long_p <- names_for_pencal$long
+  long_p <- prepare_long_for_pencal(
+    long_data = long_data,
+    id_var = id_var,
+    long_time_var = long_time_var
+  )
 
-  step1 <- do.call(
-    pencal::fit_lmms,
-    list(
-      y.names = longitudinal_markers,
-      fixefs = lmm_fixefs,
-      ranefs = lmm_ranefs,
-      t.from.base = as.name(long_time_var),
-      long.data = long_p,
-      surv.data = surv_p,
-      n.cores = n_cores
-    )
+  step1 <- pencal::fit_lmms(
+    y.names = longitudinal_markers,
+    fixefs = lmm_fixefs,
+    ranefs = lmm_ranefs,
+    t.from.base = t.from.base,
+    long.data = long_p,
+    surv.data = surv_p,
+    n.boots = 0,
+    n.cores = n_cores,
+    verbose = verbose
   )
 
   step2 <- pencal::summarize_lmms(
     step1,
-    n.cores = n_cores
+    n.cores = n_cores,
+    verbose = verbose
   )
 
   baseline_formula <- stats::as.formula(
@@ -258,7 +283,10 @@ fit_prc_landmark <- function(
     object = step2,
     surv.data = surv_p,
     baseline.covs = baseline_formula,
-    n.cores = n_cores
+    penalty = penalty,
+    standardize = standardize,
+    n.cores = n_cores,
+    verbose = verbose
   )
 
   list(
@@ -270,7 +298,11 @@ fit_prc_landmark <- function(
     event_var = event_var,
     long_time_var = long_time_var,
     baseline_covariates = baseline_covariates,
-    longitudinal_markers = longitudinal_markers
+    longitudinal_markers = longitudinal_markers,
+    lmm_fixefs = lmm_fixefs,
+    lmm_ranefs = lmm_ranefs,
+    penalty = penalty,
+    standardize = standardize
   )
 }
 
@@ -289,6 +321,17 @@ predict_prc_survival <- function(
 
   new_long <- as.data.frame(new_long)
 
+  new_base <- prepare_new_base_for_pencal(
+    new_base = new_base,
+    id_var = id_var
+  )
+
+  new_long <- prepare_long_for_pencal(
+    long_data = new_long,
+    id_var = id_var,
+    long_time_var = prc_fit$long_time_var
+  )
+
   pred <- pencal::survpred_prclmm(
     step1 = prc_fit$step1,
     step2 = prc_fit$step2,
@@ -306,7 +349,7 @@ predict_prc_survival <- function(
   surv_info <- extract_survival_matrix(pm)
 
   list(
-    ids = pm[[id_var]],
+    ids = pm$id,
     times = surv_info$times,
     surv = surv_info$surv
   )
@@ -326,6 +369,8 @@ bootstrap_conformal_scores <- function(
   longitudinal_markers,
   lmm_fixefs,
   lmm_ranefs,
+  penalty = "ridge",
+  standardize = TRUE,
   n_cores = 1,
   verbose = TRUE
 ) {
@@ -362,15 +407,18 @@ bootstrap_conformal_scores <- function(
         longitudinal_markers = longitudinal_markers,
         lmm_fixefs = lmm_fixefs,
         lmm_ranefs = lmm_ranefs,
-        n_cores = n_cores
+        penalty = penalty,
+        standardize = standardize,
+        n_cores = n_cores,
+        verbose = FALSE
       )
 
       selected <- sample_failure_subject(
         failure_dist = failure_dist,
         long_data = long_data,
         id_var = id_var,
-        long_time_var = long_time_var,
-        baseline_covariates = baseline_covariates
+        time_var = time_var,
+        long_time_var = long_time_var
       )
 
       pred <- predict_prc_survival(
@@ -552,8 +600,8 @@ sample_failure_subject <- function(
   failure_dist,
   long_data,
   id_var,
-  long_time_var,
-  baseline_covariates
+  time_var,
+  long_time_var
 ) {
   pick <- sample.int(
     nrow(failure_dist$failures),
@@ -563,6 +611,7 @@ sample_failure_subject <- function(
 
   srow <- failure_dist$failures[pick, , drop = FALSE]
   old_id <- srow[[id_var]]
+  selected_time <- srow[[time_var]]
 
   srow[[id_var]] <- 1
 
@@ -575,7 +624,7 @@ sample_failure_subject <- function(
   lrows[[id_var]] <- 1
 
   list(
-    time = srow[[names(srow)[names(srow) %in% c("time", "time.to.event")][1]]],
+    time = selected_time,
     surv = srow,
     long = lrows
   )
@@ -602,7 +651,13 @@ make_prediction_grid <- function(
     }
   )))
 
-  grid[is.finite(grid)]
+  grid <- grid[is.finite(grid)]
+
+  if (length(grid) == 0) {
+    stop("The prediction time grid is empty.")
+  }
+
+  grid
 }
 
 
@@ -726,13 +781,11 @@ invert_first_crossing <- function(
 
 
 extract_survival_matrix <- function(pm) {
-  id_col <- "id"
-
-  if (!(id_col %in% names(pm))) {
-    id_col <- names(pm)[1]
+  if (!("id" %in% names(pm))) {
+    names(pm)[1] <- "id"
   }
 
-  surv_cols <- setdiff(names(pm), id_col)
+  surv_cols <- setdiff(names(pm), "id")
 
   times <- suppressWarnings(
     as.numeric(
@@ -758,40 +811,60 @@ extract_survival_matrix <- function(pm) {
 }
 
 
-standardize_names_for_pencal <- function(
+prepare_surv_for_pencal <- function(
   surv_data,
-  long_data,
   id_var,
   time_var,
-  event_var,
-  long_time_var,
-  baseline_covariates,
-  longitudinal_markers
+  event_var
 ) {
-  surv_data <- as.data.frame(surv_data)
-  long_data <- as.data.frame(long_data)
+  out <- as.data.frame(surv_data)
 
   if (id_var != "id") {
-    names(surv_data)[names(surv_data) == id_var] <- "id"
-    names(long_data)[names(long_data) == id_var] <- "id"
+    out$id <- out[[id_var]]
   }
 
   if (time_var != "time") {
-    names(surv_data)[names(surv_data) == time_var] <- "time"
+    out$time <- out[[time_var]]
   }
 
   if (event_var != "event") {
-    names(surv_data)[names(surv_data) == event_var] <- "event"
+    out$event <- out[[event_var]]
+  }
+
+  out
+}
+
+
+prepare_long_for_pencal <- function(
+  long_data,
+  id_var,
+  long_time_var
+) {
+  out <- as.data.frame(long_data)
+
+  if (id_var != "id") {
+    out$id <- out[[id_var]]
   }
 
   if (long_time_var != "t.from.base") {
-    names(long_data)[names(long_data) == long_time_var] <- "t.from.base"
+    out$t.from.base <- out[[long_time_var]]
   }
 
-  list(
-    surv = surv_data,
-    long = long_data
-  )
+  out
+}
+
+
+prepare_new_base_for_pencal <- function(
+  new_base,
+  id_var
+) {
+  out <- as.data.frame(new_base)
+
+  if (id_var != "id") {
+    out$id <- out[[id_var]]
+  }
+
+  out
 }
 
 
@@ -808,7 +881,7 @@ check_packages <- function() {
 }
 
 
-check_inputs <- function(
+check_dynamic_inputs <- function(
   surv_data,
   long_data,
   id_var,
@@ -816,18 +889,29 @@ check_inputs <- function(
   event_var,
   long_time_var,
   baseline_covariates,
-  longitudinal_markers
+  longitudinal_markers,
+  require_event = TRUE
 ) {
+  surv_required <- c(id_var, time_var, baseline_covariates)
+
+  if (require_event) {
+    surv_required <- c(surv_required, event_var)
+  } else {
+    if (event_var %in% names(surv_data)) {
+      surv_required <- c(surv_required, event_var)
+    }
+  }
+
   check_columns(
     data = surv_data,
-    required = c(id_var, time_var, event_var, baseline_covariates),
-    data_name = "surv_data"
+    required = surv_required,
+    data_name = "survival data"
   )
 
   check_columns(
     data = long_data,
     required = c(id_var, long_time_var, longitudinal_markers),
-    data_name = "long_data"
+    data_name = "longitudinal data"
   )
 
   invisible(TRUE)
