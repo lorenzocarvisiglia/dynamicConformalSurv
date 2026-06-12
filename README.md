@@ -23,10 +23,7 @@ The algorithm combines:
 dynamicConformalSurv/
 ├── R/
 │   ├── load_dynamic_conformal.R
-│   ├── dynamic_conformal_pi.R
-│   ├── working_prc_model.R
-│   ├── conformal_calibration.R
-│   └── survival_inversion.R
+│   └── dynamic_conformal_pi.R
 ├── examples/
 │   └── example_toy_data.R
 └── data/
@@ -50,7 +47,14 @@ The longitudinal data should contain one row per subject-visit, with at least:
 - visit time;
 - longitudinal markers.
 
-The scripts do not include data-cleaning functions. Dataset-specific preprocessing should be done by the user before calling the main function.
+## Dependencies
+
+The scripts require:
+
+- `survival`
+- `pencal`
+
+Please use a recent version of `pencal`. If survival prediction fails at time points beyond the maximum observed training time, update `pencal`.
 
 ## Basic usage
 
@@ -66,18 +70,44 @@ fit <- dynamic_conformal_pi(
   id_var = "id",
   time_var = "time",
   event_var = "event",
-  long_time_var = "time_fup",
-  baseline_covariates = c("age", "sex"),
-  longitudinal_markers = c("marker1", "marker2"),
+  long_time_var = "t.from.base",
+  baseline_covariates = c("baseline.age"),
+  longitudinal_markers = c("y1", "y2", "y3"),
   alpha = 0.10,
   B = 500,
   side = "two",
+  lmm_fixefs = ~ age,
+  lmm_ranefs = ~ age | id,
   seed = 123
 )
 
 fit$intervals
 fit$cutoffs
+fit$m_eff
 ```
+
+## Output
+
+The main function returns a list with:
+
+- `intervals`: prediction intervals on the original time scale;
+- `cutoffs`: calibrated survival-probability thresholds;
+- `calibration_scores`: bootstrap conformal scores;
+- `m_eff`: number of successful bootstrap calibration replicates;
+- `prc_fit`: fitted PRC model objects.
+
+The interval table contains:
+
+```text
+id
+landmark
+alpha
+side
+lower
+upper
+```
+
+For two-sided intervals, `lower` and `upper` are obtained by inverting the calibrated survival thresholds. If the fitted survival curve does not cross the required threshold within the prediction grid, the corresponding upper endpoint is returned as `Inf`.
 
 ## Example
 
@@ -88,19 +118,6 @@ examples/example_toy_data.R
 ```
 
 The toy example is intended to show the required data structure and function call.
-
-## Data availability
-
-This repository does not include ADNI data, simulation outputs, cluster scripts, or large `.RData` files.
-
-## Dependencies
-
-The scripts use standard R packages, including:
-
-- `survival`
-- `data.table`
-
-The working dynamic survival model is based on Penalized Regression Calibration. Users should install the required PRC implementation before running the full method.
 
 ## Citation
 
