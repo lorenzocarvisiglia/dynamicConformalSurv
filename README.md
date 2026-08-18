@@ -124,4 +124,4 @@ The toy example is intended to show the required data structure and function cal
 If you use this code, please cite the accompanying manuscript:
 
 Carvisiglia, L., Ranciati, S., and Signorelli, M.  
-*On the computation of prediction intervals for survival times in dynamic prediction problems.*
+*Dynamic prediction intervals for survival times*
