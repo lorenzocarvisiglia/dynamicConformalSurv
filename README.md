@@ -4,7 +4,7 @@ This repository contains R scripts implementing dynamic conformal prediction int
 
 The code accompanies the manuscript:
 
-**On the computation of prediction intervals for survival times in dynamic prediction problems**
+**Dynamic prediction intervals for survival times**
 
 ## Overview
 
