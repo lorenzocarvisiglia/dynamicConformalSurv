@@ -47,3 +47,16 @@ po/*~
 
 # RStudio Connect folder
 rsconnect/
+
+# Study data and generated results
+data/*
+!data/README.md
+results/
+Results/
+output/
+outputs/
+*.rds
+*.RDS
+*.RData
+*.csv
+
