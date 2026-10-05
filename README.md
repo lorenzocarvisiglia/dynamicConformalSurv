@@ -1,62 +1,84 @@
 # dynamicConformalSurv
 
-This repository contains R scripts implementing dynamic conformal prediction intervals for survival times with longitudinal covariates.
+Research R code for dynamic prediction intervals for survival times with longitudinal covariates.
 
-The code accompanies the manuscript:
+The implementation accompanies the manuscript and PhD thesis chapter:
 
 **Dynamic prediction intervals for survival times**
 
-## Overview
+by Lorenzo Carvisiglia, S. Ranciati, and M. Signorelli.
 
-The method constructs prediction intervals for the event time of a subject who is event-free at a landmark time.
+## Scope
 
-The algorithm combines:
+The repository provides a reusable, subject-level implementation of the proposed dynamic conformal method. It is script-based research code rather than an R package.
 
-1. a working dynamic survival model based on Penalized Regression Calibration;
-2. bootstrap conformal calibration on the survival-probability scale;
-3. inverse probability of censoring weighting to account for right-censored outcomes;
-4. inversion of calibrated survival thresholds to obtain prediction interval endpoints.
+The method combines:
+
+1. a working dynamic survival model based on Penalized Regression Calibration (PRC) through the `pencal` package;
+2. subject-level bootstrap refitting of the full working model;
+3. inverse probability of censoring weighting (IPCW) to sample observed post-landmark failures;
+4. calibration on the survival-probability scale;
+5. inversion of calibrated survival thresholds to obtain one-sided or two-sided prediction intervals.
+
+Prediction is defined for subjects who are observed and event-free at a landmark time.
 
 ## Repository structure
 
 ```text
 dynamicConformalSurv/
 ├── R/
-│   ├── load_dynamic_conformal.R
-│   └── dynamic_conformal_pi.R
+│   ├── dynamic_conformal_pi.R
+│   ├── coverage_one_run.R
+│   └── load_dynamic_conformal.R
 ├── examples/
-│   └── example_toy_data.R
-└── data/
-    └── README.md
+│   ├── example_toy_data.R
+│   └── run_coverage_one_run.R
+├── tests/
+│   └── test_core_helpers.R
+├── data/
+│   └── README.md
+├── .gitignore
+├── LICENSE
+└── README.md
 ```
 
-## Required input data
+The public implementation is intentionally independent of personal paths, cluster schedulers, and private datasets.
 
-Users should provide already-cleaned data.
+## Dependencies
 
-The survival data should contain one row per subject, with at least:
+The core method requires:
+
+- `survival`
+- `pencal`
+
+A recent version of `pencal` is recommended.
+
+## Input data
+
+### Training data
+
+`surv_train` must contain one row per subject, including:
 
 - subject identifier;
-- observed survival or censoring time;
+- observed event or censoring time;
 - event indicator;
-- baseline covariates.
+- baseline covariates used in the working survival model.
 
-The longitudinal data should contain one row per subject-visit, with at least:
+`long_train` must contain one row per subject-visit, including:
 
 - subject identifier;
 - visit time;
 - longitudinal markers.
 
-For subjects to be predicted, future event or censoring times are not required. Prediction interval endpoints are obtained on a time grid determined only by post-landmark event times in the training data.
+The function constructs the landmark risk set internally and uses only longitudinal measurements observed up to the landmark.
 
-## Dependencies
+### Subjects to be predicted
 
-The scripts require:
+For genuine prediction, `surv_new` needs only the subject identifier and baseline covariates. Future event or censoring times are not required.
 
-- `survival`
-- `pencal`
+`long_new` should contain only information available at or before the landmark. The prediction time grid is determined exclusively from post-landmark event times in the training data, so future follow-up information from new subjects is never used to determine interval endpoints.
 
-Please use a recent version of `pencal`. If survival prediction fails at time points beyond the maximum observed training time, update `pencal`.
+If an observed follow-up-time column is supplied in `surv_new`, it is used only to restrict the data to subjects known to be observed and event-free at the landmark.
 
 ## Basic usage
 
@@ -78,8 +100,8 @@ fit <- dynamic_conformal_pi(
   alpha = 0.10,
   B = 500,
   side = "two",
-  lmm_fixefs = ~ age,
-  lmm_ranefs = ~ age | id,
+  lmm_fixefs = ~ t.from.base,
+  lmm_ranefs = ~ t.from.base | id,
   seed = 123
 )
 
@@ -88,38 +110,54 @@ fit$cutoffs
 fit$m_eff
 ```
 
+If `lmm_fixefs` and `lmm_ranefs` are omitted, the same random-intercept/random-slope specification in `t.from.base` is used by default.
+
 ## Output
 
-The main function returns a list with:
+`dynamic_conformal_pi()` returns:
 
 - `intervals`: prediction intervals on the original time scale;
 - `cutoffs`: calibrated survival-probability thresholds;
-- `calibration_scores`: bootstrap conformal scores;
+- `calibration_scores`: successful bootstrap conformity scores;
 - `m_eff`: number of successful bootstrap calibration replicates;
-- `prc_fit`: fitted PRC model objects.
+- `prc_fit`: fitted PRC objects;
+- `landmark`, `alpha`, and `side`.
 
-The interval table contains:
+For two-sided intervals, the lower and upper endpoints are obtained by first crossing of the corresponding calibrated survival thresholds. If the fitted survival curve does not cross the threshold within the estimable training-event grid, the corresponding endpoint is returned as `Inf`.
 
-```text
-id
-landmark
-alpha
-side
-lower
-upper
-```
+## One-run simulation evaluation
 
-For two-sided intervals, `lower` and `upper` are obtained by inverting the calibrated survival thresholds. If the fitted survival curve does not cross the required threshold within the prediction grid, the corresponding upper endpoint is returned as `Inf`.
+`R/coverage_one_run.R` contains `coverage_one_run_prc()`, a helper for evaluating one simulated train/validation split. Unlike genuine prediction, this evaluation helper requires the true event time in the validation data so that empirical coverage can be computed.
 
-## Example
-
-A minimal toy example is provided in:
+See:
 
 ```text
-examples/example_toy_data.R
+examples/run_coverage_one_run.R
 ```
 
-The toy example is intended to show the required data structure and function call.
+## Implementation details
+
+The calibration distribution is formed among observed post-landmark failures with probability proportional to `1 / Ghat(T*)`, where `Ghat` is the Kaplan-Meier estimate of the censoring survival function in the landmark risk set.
+
+Each bootstrap replicate resamples subjects with replacement, preserves bootstrap multiplicities by assigning new bootstrap subject identifiers, refits the complete PRC working model, draws one IPCW-weighted observed failure from the original landmark sample, and evaluates the refitted survival function at that subject's observed failure time.
+
+The numerical implementation uses a small lower bound for estimated censoring survival probabilities to avoid division by zero. This is a numerical safeguard and does not replace the censoring-positivity assumption used in the theoretical results.
+
+## Data and reproducibility
+
+No ADNI participant-level data are distributed in this repository. ADNI data are subject to the access conditions of the Alzheimer's Disease Neuroimaging Initiative.
+
+Large generated simulation datasets are also not stored in Git. The reusable method code does not depend on those datasets.
+
+The current public release contains the core method and generic evaluation examples. Manuscript-specific archived cluster job scripts are intentionally not part of the reusable interface because they contain environment-specific execution details.
+
+## Tests
+
+Core helper functions can be checked without fitting a PRC model:
+
+```bash
+Rscript tests/test_core_helpers.R
+```
 
 ## Citation
 
