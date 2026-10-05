@@ -1,25 +1,16 @@
 # Data
 
-This folder is reserved for small example datasets.
+No participant-level study data or large simulation datasets are stored in this repository.
 
-The scripts in this repository do not include the ADNI data or the simulation data used in the paper.
+For the reusable method, users provide:
 
-Users should provide already-cleaned data in two data frames:
+1. a training survival data frame with one row per subject;
+2. a training longitudinal data frame with one row per subject-visit;
+3. baseline covariates for the subjects to be predicted;
+4. longitudinal measurements observed no later than the chosen landmark.
 
-1. a survival data frame, with one row per subject;
-2. a longitudinal data frame, with one row per subject-visit.
+Training survival data must include the observed event/censoring time and event indicator. Future outcomes are not required for subjects being predicted.
 
-The survival data frame should contain at least:
+The ADNI data used in the accompanying analysis are not redistributed here because access is governed by the Alzheimer's Disease Neuroimaging Initiative.
 
-- subject identifier;
-- observed survival or censoring time;
-- event indicator;
-- baseline covariates.
-
-The longitudinal data frame should contain at least:
-
-- subject identifier;
-- visit time;
-- longitudinal markers observed up to follow-up.
-
-See `examples/example_toy_data.R` for a minimal example.
+See `examples/example_toy_data.R` for the expected structure.
