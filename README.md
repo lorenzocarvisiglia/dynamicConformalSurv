@@ -47,6 +47,8 @@ The longitudinal data should contain one row per subject-visit, with at least:
 - visit time;
 - longitudinal markers.
 
+For subjects to be predicted, future event or censoring times are not required. Prediction interval endpoints are obtained on a time grid determined only by post-landmark event times in the training data.
+
 ## Dependencies
 
 The scripts require:
