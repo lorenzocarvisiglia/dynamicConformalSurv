@@ -1,0 +1,21 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite the accompanying manuscript."
+title: "dynamicConformalSurv"
+type: software
+authors:
+  - family-names: "Carvisiglia"
+    given-names: "Lorenzo"
+repository-code: "https://github.com/lorenzocarvisiglia/dynamicConformalSurv"
+license: "MIT"
+preferred-citation:
+  type: article
+  title: "Dynamic prediction intervals for survival times"
+  authors:
+    - family-names: "Carvisiglia"
+      given-names: "Lorenzo"
+    - family-names: "Ranciati"
+      given-names: "Saverio"
+    - family-names: "Signorelli"
+      given-names: "Mirko"
+  year: 2026
+  url: "https://arxiv.org/abs/2609.10409"
