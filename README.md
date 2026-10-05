@@ -6,7 +6,7 @@ The implementation accompanies the manuscript and PhD thesis chapter:
 
 **Dynamic prediction intervals for survival times**
 
-by Lorenzo Carvisiglia, S. Ranciati, and M. Signorelli.
+by Lorenzo Carvisiglia, Saverio Ranciati, and Mirko Signorelli.
 
 ## Scope
 
@@ -163,5 +163,5 @@ Rscript tests/test_core_helpers.R
 
 If you use this code, please cite the accompanying manuscript:
 
-Carvisiglia, L., Ranciati, S., and Signorelli, M.  
-*Dynamic prediction intervals for survival times*
+Carvisiglia, L., Ranciati, S., and Signorelli, M. (2026).  
+*Dynamic prediction intervals for survival times*. arXiv:2609.10409.
