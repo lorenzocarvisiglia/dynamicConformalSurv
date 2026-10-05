@@ -76,7 +76,6 @@ coverage_one_run_prc <- function(
   time_grid <- make_prediction_grid(
     landmark = landmark,
     surv_train = train_lmk$surv,
-    surv_new = valid_lmk$surv,
     time_var = time_var,
     event_var = event_var
   )
