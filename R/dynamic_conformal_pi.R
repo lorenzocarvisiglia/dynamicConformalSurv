@@ -186,7 +186,6 @@ dynamic_conformal_pi <- function(
   time_grid <- make_prediction_grid(
     landmark = landmark,
     surv_train = surv_lmk,
-    surv_new = new_lmk$surv,
     time_var = time_var,
     event_var = event_var
   )
@@ -631,21 +630,18 @@ sample_failure_subject <- function(
 make_prediction_grid <- function(
   landmark,
   surv_train,
-  surv_new,
   time_var,
   event_var
 ) {
+  # Prediction endpoints are determined by jumps of the fitted Cox survival
+  # function, so the grid must depend only on the training data. Future
+  # follow-up times from subjects being predicted are deliberately excluded.
   grid <- sort(unique(c(
     landmark,
     surv_train[[time_var]][
       surv_train[[time_var]] > landmark &
         surv_train[[event_var]] == 1
-    ],
-    if (time_var %in% names(surv_new)) {
-      surv_new[[time_var]][surv_new[[time_var]] > landmark]
-    } else {
-      numeric(0)
-    }
+    ]
   )))
 
   grid <- grid[is.finite(grid)]
