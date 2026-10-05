@@ -1,13 +1,15 @@
-# Toy example for dynamicConformalSurv scripts
+# Toy example for dynamicConformalSurv
 #
-# This file shows the expected structure of the survival and longitudinal data.
-# The numerical results are not meant to reproduce the paper.
+# This file shows the expected data structure and a genuine prediction call.
+# The numerical results are illustrative and are not intended to reproduce
+# the manuscript simulations.
 
 set.seed(1)
 
 source("R/load_dynamic_conformal.R")
 
 n <- 100
+landmark <- 2
 
 surv_data <- data.frame(
   id = 1:n,
@@ -32,19 +34,37 @@ long_data <- do.call(
 )
 
 train_ids <- sample(surv_data$id, size = 70)
+new_ids <- setdiff(surv_data$id, train_ids)
 
 surv_train <- surv_data[surv_data$id %in% train_ids, ]
 long_train <- long_data[long_data$id %in% train_ids, ]
 
-surv_new <- surv_data[!surv_data$id %in% train_ids, ]
-long_new <- long_data[!long_data$id %in% train_ids, ]
+# In a real prediction problem, eligibility at the landmark is known at the
+# prediction time. Future outcomes are therefore not passed to the prediction
+# function.
+new_risk_ids <- surv_data$id[
+  surv_data$id %in% new_ids & surv_data$time > landmark
+]
+
+surv_new <- surv_data[
+  surv_data$id %in% new_risk_ids,
+  c("id", "age", "sex"),
+  drop = FALSE
+]
+
+long_new <- long_data[
+  long_data$id %in% new_risk_ids &
+    long_data$time_fup <= landmark,
+  ,
+  drop = FALSE
+]
 
 fit <- dynamic_conformal_pi(
   surv_train = surv_train,
   long_train = long_train,
   surv_new = surv_new,
   long_new = long_new,
-  landmark = 2,
+  landmark = landmark,
   id_var = "id",
   time_var = "time",
   event_var = "event",
