@@ -2,7 +2,7 @@
 
 This directory contains portable, sequential R scripts corresponding to the simulation and ADNI analyses reported with the dynamic conformal survival method.
 
-The original computations were run on a computing cluster. The public scripts here are refactored versions of the final analysis code: cluster-specific paths, SLURM task arrays, manifests, and parallel execution have been removed. The statistical specifications are preserved.
+The original computations were run on a computing cluster. The public scripts here are portable reconstructions of the final analyses: cluster-specific paths, task arrays, manifests, and parallel execution have been removed. The statistical specifications are preserved. For the 3-predictor generator, the final saved datasets and the thesis specification are the reference because a later helper script retained on the cluster had already been modified after those datasets were generated. The 20-predictor generator was reconstructed from the final June 2026 generator and checked against the saved validation data.
 
 ## Structure
 
