@@ -10,6 +10,7 @@ reproducibility/
 - simulations/simulate_three_predictor.R
 - simulations/simulate_twenty_predictor.R
 - simulations/run_simulation_cell.R
+- simulations/run_simulation_study.R
 - adni/README.md
 - adni/run_adni_cv.R
 
@@ -21,7 +22,7 @@ The 20-predictor generator is a separate strong-NPH design. It uses baseline age
 
 The main simulation settings reported in the thesis are training sample sizes 300, 1000, and 1500; target censoring 20%, 35%, and 50%; landmarks 2 and 4; validation sample size 10,000; 1,000 Monte Carlo replications; nominal coverage 90%; and 500 bootstrap calibration replicates in the final analyses.
 
-A single cell can be run with run_simulation_cell(). Running the full design sequentially is computationally intensive.
+A single cell can be run with run_simulation_cell(). The full Monte Carlo grid, including the 20-predictor alpha-sensitivity settings 0.05, 0.10, 0.15, and 0.20, can be run with run_simulation_study(). Running the full design sequentially is computationally intensive.
 
 ## ADNI analysis
 
