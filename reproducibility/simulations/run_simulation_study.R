@@ -42,6 +42,51 @@ run_simulation_study <- function(
 
   rows <- vector("list", nrow(grid))
 
+  # The original study used one censoring calibration and one large validation
+  # sample for each scenario/censoring design, reused across Monte Carlo
+  # training replications.
+  cache <- new.env(parent = emptyenv())
+
+  get_design_objects <- function(scenario, censoring) {
+    key <- paste(setting, scenario, censoring, sep = "_")
+    if (exists(key, envir = cache, inherits = FALSE)) {
+      return(get(key, envir = cache, inherits = FALSE))
+    }
+
+    design_seed <- seed_offset + match(scenario, unique(scenarios)) * 10000L +
+      as.integer(round(1000 * censoring))
+
+    if (setting == "three") {
+      cmax <- calibrate_three_predictor_cmax(
+        scenario = scenario,
+        target_censoring = censoring,
+        seed = design_seed
+      )
+      validation <- simulate_three_predictor_dataset(
+        n = n_validation,
+        scenario = scenario,
+        target_censoring = censoring,
+        cmax = cmax,
+        seed = design_seed + 500000L
+      )
+    } else {
+      cmax <- calibrate_twenty_predictor_cmax(
+        target_censoring = censoring,
+        seed = design_seed
+      )
+      validation <- simulate_twenty_predictor_dataset(
+        n = n_validation,
+        target_censoring = censoring,
+        cmax = cmax,
+        seed = design_seed + 500000L
+      )
+    }
+
+    out <- list(cmax = cmax, validation = validation)
+    assign(key, out, envir = cache)
+    out
+  }
+
   for (i in seq_len(nrow(grid))) {
     g <- grid[i, ]
 
@@ -58,6 +103,8 @@ run_simulation_study <- function(
       )
     }
 
+    design <- get_design_objects(g$scenario, as.numeric(g$censoring))
+
     ans <- try(
       run_simulation_cell(
         setting = setting,
@@ -69,6 +116,8 @@ run_simulation_study <- function(
         alpha = as.numeric(g$alpha),
         B = as.integer(B),
         seed = as.integer(seed_offset + g$rep),
+        cmax = design$cmax,
+        validation_data = design$validation,
         verbose = FALSE
       ),
       silent = TRUE
