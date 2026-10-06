@@ -40,8 +40,12 @@ dynamicConformalSurv/
 │   │   ├── run_simulation.R
 │   │   ├── run_alpha_sensitivity.R
 │   │   └── README.md
-│   └── adni/
-│       ├── run_adni_cv.R
+│   ├── adni/
+│   │   ├── run_adni_cv.R
+│   │   └── README.md
+│   └── postprocessing/
+│       ├── recompute_3marker_left_coverage.R
+│       ├── reaggregate_adni_existing.R
 │       └── README.md
 ├── tests/
 │   └── test_core_helpers.R
@@ -61,7 +65,7 @@ The core method requires:
 - `survival`
 - `pencal`
 
-The simulation generators additionally use `MASS`. A recent version of `pencal` is recommended.
+The simulation generators additionally use `MASS`. The archived ADNI re-aggregation helper uses `data.table`. A recent version of `pencal` is recommended.
 
 ## Input data
 
@@ -162,6 +166,8 @@ Large generated simulation datasets are also not stored in Git. The reusable met
 The `reproduction/simulations/` directory contains serial, user-independent scripts for the 3-marker and 20-marker simulation designs and for the alpha-sensitivity analysis. The full manuscript settings use 1,000 Monte Carlo replications, 500 bootstrap calibration replicates, and a validation sample of 10,000 subjects.
 
 The `reproduction/adni/` directory contains a serial five-fold cross-validation script for the ADNI analysis. It requires the processed ADNI data object used in the study, which cannot be redistributed here.
+
+The `reproduction/postprocessing/` directory contains checks for already-computed archived results. These scripts do not refit PRC models. They re-summarise stored interval endpoints to verify historical table-generation conventions.
 
 The original cluster job-array wrappers are intentionally not included because they contain environment-specific paths and scheduling instructions.
 
