@@ -373,17 +373,29 @@ bootstrap_conformal_scores <- function(
   ids <- unique(surv_data[[id_var]])
   scores <- rep(NA_real_, B)
 
+  # Pre-generate the subject bootstrap draws and IPCW failure picks. This
+  # mirrors the implementation used for the simulation study and keeps the
+  # resampling stream independent of any internal model-fitting randomness.
+  boot_draws <- replicate(
+    B,
+    sample(ids, size = length(ids), replace = TRUE),
+    simplify = FALSE
+  )
+
+  failure_picks <- sample.int(
+    nrow(failure_dist$failures),
+    size = B,
+    replace = TRUE,
+    prob = failure_dist$weights
+  )
+
   for (b in seq_len(B)) {
     if (verbose && (b == 1 || b %% 50 == 0 || b == B)) {
       message("Bootstrap replicate ", b, " / ", B)
     }
 
     scores[b] <- tryCatch({
-      draw_ids <- sample(
-        ids,
-        size = length(ids),
-        replace = TRUE
-      )
+      draw_ids <- boot_draws[[b]]
 
       boot_data <- make_bootstrap_data(
         surv_data = surv_data,
@@ -414,7 +426,8 @@ bootstrap_conformal_scores <- function(
         long_data = long_data,
         id_var = id_var,
         time_var = time_var,
-        long_time_var = long_time_var
+        long_time_var = long_time_var,
+        pick = failure_picks[b]
       )
 
       pred <- predict_prc_survival(
@@ -573,14 +586,8 @@ make_ipcw_failure_distribution <- function(
     extend = TRUE
   )$surv
 
-  ghat[!is.finite(ghat)] <- NA_real_
-
-  if (all(is.na(ghat))) {
-    stop("Could not estimate censoring survival probabilities.")
-  }
-
-  ghat[is.na(ghat)] <- min(ghat, na.rm = TRUE)
-  ghat <- pmax(ghat, 1e-6)
+  # Numerical safeguard matching the original analysis code.
+  ghat[!is.finite(ghat) | ghat <= 0] <- 1e-8
 
   weights <- 1 / ghat
   weights <- weights / sum(weights)
@@ -597,13 +604,16 @@ sample_failure_subject <- function(
   long_data,
   id_var,
   time_var,
-  long_time_var
+  long_time_var,
+  pick = NULL
 ) {
-  pick <- sample.int(
-    nrow(failure_dist$failures),
-    size = 1,
-    prob = failure_dist$weights
-  )
+  if (is.null(pick)) {
+    pick <- sample.int(
+      nrow(failure_dist$failures),
+      size = 1,
+      prob = failure_dist$weights
+    )
+  }
 
   srow <- failure_dist$failures[pick, , drop = FALSE]
   old_id <- srow[[id_var]]
