@@ -14,6 +14,10 @@ run_simulation_cell <- function(
   alpha = 0.10,
   B = 500L,
   seed = 1L,
+  cmax = NULL,
+  validation_data = NULL,
+  calibration_seed = 7001L,
+  validation_seed = 8000001L,
   verbose = TRUE
 ) {
   setting <- match.arg(setting)
@@ -24,29 +28,39 @@ run_simulation_cell <- function(
   }
 
   if (setting == "three") {
-    cmax <- calibrate_three_predictor_cmax(
-      scenario = scenario,
-      target_censoring = target_censoring,
-      seed = 7000L + seed
-    )
+    if (is.null(cmax)) {
+      cmax <- calibrate_three_predictor_cmax(
+        scenario = scenario,
+        target_censoring = target_censoring,
+        seed = calibration_seed
+      )
+    }
     train <- simulate_three_predictor_dataset(
       n_train, scenario, target_censoring, cmax, seed
     )
-    valid <- simulate_three_predictor_dataset(
-      n_validation, scenario, target_censoring, cmax, 1000000L + seed
-    )
+    valid <- validation_data
+    if (is.null(valid)) {
+      valid <- simulate_three_predictor_dataset(
+        n_validation, scenario, target_censoring, cmax, validation_seed
+      )
+    }
     markers <- c("y1", "y2", "y3")
   } else {
-    cmax <- calibrate_twenty_predictor_cmax(
-      target_censoring = target_censoring,
-      seed = 7000L + seed
-    )
+    if (is.null(cmax)) {
+      cmax <- calibrate_twenty_predictor_cmax(
+        target_censoring = target_censoring,
+        seed = calibration_seed
+      )
+    }
     train <- simulate_twenty_predictor_dataset(
       n_train, target_censoring, cmax, seed
     )
-    valid <- simulate_twenty_predictor_dataset(
-      n_validation, target_censoring, cmax, 1000000L + seed
-    )
+    valid <- validation_data
+    if (is.null(valid)) {
+      valid <- simulate_twenty_predictor_dataset(
+        n_validation, target_censoring, cmax, validation_seed
+      )
+    }
     markers <- paste0("y", 1:20)
   }
 
